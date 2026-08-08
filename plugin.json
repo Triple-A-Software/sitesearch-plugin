@@ -1,0 +1,59 @@
+{
+    "$schema": "https://neleto.io/schemas/main/plugin_manifest_schema.json",
+    "name": "site-search",
+    "version": "1.0.0",
+    "bin": "./target/x86_64-unknown-linux-gnu/release/site-search",
+    "include_files": [
+        "ui/dist/**/*",
+        "target/x86_64-unknown-linux-gnu/release/site-search",
+        "templates/**/*",
+        "components/**/*"
+    ],
+    "ui": "/ui",
+    "rewriter": "/rewriter",
+    "components": "./components",
+    "pages": [
+        {
+            "name": "Search results",
+            "route": "/search",
+            "allow_select_layout": true,
+            "enable_tailwind": true
+        }
+    ],
+    "api": [
+        {
+            "route": "/api/stats",
+            "allowed_roles": ["admin", "developer", "editor"]
+        },
+        {
+            "route": "/api/reindex",
+            "allowed_roles": ["admin", "developer"]
+        }
+    ],
+    "dashboard_cards": [
+        {
+            "name": "top-search-queries",
+            "route": "/dashboard/top-queries",
+            "label": {
+                "de": "Top-Suchanfragen",
+                "en": "Top Searches"
+            },
+            "description": {
+                "de": "Die häufigsten Suchbegriffe Ihrer Besucher",
+                "en": "What your visitors search for most"
+            }
+        },
+        {
+            "name": "no-result-queries",
+            "route": "/dashboard/no-results",
+            "label": {
+                "de": "Suchen ohne Treffer",
+                "en": "Searches Without Results"
+            },
+            "description": {
+                "de": "Suchbegriffe ohne Treffer – Hinweise auf fehlende Inhalte",
+                "en": "Searches that found nothing — content gaps to fill"
+            }
+        }
+    ]
+}

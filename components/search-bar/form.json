@@ -1,0 +1,25 @@
+{
+    "$schema": "https://neleto.io/schemas/main/form_schema.json",
+    "label": {
+        "de": "Suchleiste",
+        "en": "Search Bar"
+    },
+    "properties": [
+        {
+            "id": "placeholder",
+            "type": "text",
+            "label": {
+                "de": "Platzhaltertext",
+                "en": "Placeholder text"
+            }
+        },
+        {
+            "id": "button_label",
+            "type": "text",
+            "label": {
+                "de": "Button-Beschriftung",
+                "en": "Button label"
+            }
+        }
+    ]
+}

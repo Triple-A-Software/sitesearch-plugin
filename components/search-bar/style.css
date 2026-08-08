@@ -1,0 +1,22 @@
+.ss-bar {
+    display: flex;
+    gap: 8px;
+    max-width: 480px;
+}
+.ss-bar__input {
+    flex: 1;
+    padding: 10px 12px;
+    border: 1px solid #d1d5db;
+    border-radius: 8px;
+    font: inherit;
+}
+.ss-bar__button {
+    padding: 10px 16px;
+    border: 0;
+    border-radius: 8px;
+    background: #111827;
+    color: #fff;
+    font: inherit;
+    font-weight: 600;
+    cursor: pointer;
+}

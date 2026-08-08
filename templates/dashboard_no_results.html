@@ -1,0 +1,27 @@
+{% include "theme_head.html" %}
+<style>
+    html, body { background: var(--ui-bg); margin: 0; }
+    .ss-card { font-family: system-ui, sans-serif; padding: 16px; color: var(--ui-text); }
+    .ss-head { display: flex; align-items: baseline; gap: 8px; }
+    .ss-n { font-size: 26px; font-weight: 700; color: var(--ui-warning); }
+    .ss-muted { color: var(--ui-text-muted); font-size: 13px; }
+    .ss-list { margin: 12px 0 0; padding: 0; list-style: none; font-size: 13px; }
+    .ss-list li { display: flex; justify-content: space-between; gap: 8px; padding: 5px 0; border-top: 1px solid var(--ui-border); }
+    .ss-q { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+    .ss-c { color: var(--ui-text-muted); font-variant-numeric: tabular-nums; }
+</style>
+<div class="ss-card">
+    <div class="ss-head">
+        <span class="ss-n">{{ total }}</span>
+        <span class="ss-muted">searches returned nothing</span>
+    </div>
+    {% if queries %}
+    <ul class="ss-list">
+        {% for r in queries %}
+        <li><span class="ss-q">{{ r.q }}</span><span class="ss-c">{{ r.count }}</span></li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p class="ss-muted" style="margin: 12px 0 0;">Every search so far found something. 🎉</p>
+    {% endif %}
+</div>

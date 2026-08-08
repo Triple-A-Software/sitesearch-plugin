@@ -1,0 +1,137 @@
+<!doctype html>
+<html lang="en">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Site Search</title>
+    <style>
+        /* Nuxt UI theme tokens — overwritten at runtime from the parent admin
+           document (see the script below); these are the standalone fallbacks. */
+        :root {
+            --ui-bg: #ffffff;
+            --ui-bg-muted: #f9fafb;
+            --ui-bg-elevated: #f3f4f6;
+            --ui-text: #111827;
+            --ui-text-muted: #6b7280;
+            --ui-text-highlighted: #030712;
+            --ui-border: #e5e7eb;
+            --ui-primary: #00b8db;
+            --ui-success: #16a34a;
+            --ui-warning: #d97706;
+            --ui-error: #dc2626;
+            --ui-info: #2563eb;
+        }
+        :root.dark {
+            --ui-bg: #111827;
+            --ui-bg-muted: #0b1220;
+            --ui-bg-elevated: #1f2937;
+            --ui-text: #f9fafb;
+            --ui-text-muted: #9ca3af;
+            --ui-text-highlighted: #ffffff;
+            --ui-border: #1f2937;
+        }
+        * { box-sizing: border-box; }
+        body { font-family: system-ui, -apple-system, sans-serif; margin: 0; color: var(--ui-text); background: var(--ui-bg-muted); }
+        header { padding: 20px 24px; background: var(--ui-bg); border-bottom: 1px solid var(--ui-border); display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+        h1 { font-size: 18px; margin: 0; }
+        h2 { font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: var(--ui-text-muted); margin: 24px 0 8px; }
+        main { padding: 24px; max-width: 1000px; margin: 0 auto; }
+        .cards { display: flex; gap: 16px; flex-wrap: wrap; }
+        .card { background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 12px; padding: 16px 20px; min-width: 140px; }
+        .card .n { font-size: 26px; font-weight: 700; }
+        .card .l { font-size: 12px; color: var(--ui-text-muted); }
+        button { font: inherit; padding: 8px 14px; border-radius: 8px; border: 1px solid transparent; background: var(--ui-primary); color: #1a1a1a; cursor: pointer; font-weight: 600; }
+        button:disabled { opacity: .5; cursor: default; }
+        table { width: 100%; border-collapse: collapse; background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 12px; overflow: hidden; }
+        th, td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--ui-border); font-size: 14px; }
+        th { color: var(--ui-text-muted); font-weight: 600; font-size: 12px; text-transform: uppercase; letter-spacing: .04em; }
+        td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+        tr:last-child td { border-bottom: none; }
+        .muted { color: var(--ui-text-muted); }
+        .row { display: flex; align-items: center; gap: 8px; }
+    </style>
+    <script>
+        // Match the admin theme: copy resolved Nuxt UI colors + dark class from the parent.
+        (function () {
+            var root = document.documentElement;
+            try {
+                var pdoc = window.parent.document;
+                if (pdoc.documentElement.classList.contains("dark")) root.classList.add("dark");
+                var tokens = ["--ui-bg", "--ui-bg-muted", "--ui-bg-elevated", "--ui-text",
+                    "--ui-text-muted", "--ui-text-highlighted", "--ui-border", "--ui-primary",
+                    "--ui-success", "--ui-warning", "--ui-error", "--ui-info"];
+                var probe = pdoc.createElement("span");
+                probe.style.cssText = "position:absolute;opacity:0;pointer-events:none";
+                pdoc.body.appendChild(probe);
+                var sentinel = "rgb(1, 2, 3)";
+                tokens.forEach(function (t) {
+                    probe.style.color = "var(" + t + ", " + sentinel + ")";
+                    var c = getComputedStyle(probe).color;
+                    if (c && c !== sentinel) root.style.setProperty(t, c);
+                });
+                pdoc.body.removeChild(probe);
+            } catch (e) { /* isolated / cross-origin: fallbacks apply */ }
+        })();
+    </script>
+</head>
+<body>
+    <header>
+        <h1>Site Search</h1>
+        <div class="row" style="margin-left:auto">
+            <button id="run">Reindex pages</button>
+        </div>
+    </header>
+    <main>
+        <div class="cards" id="cards"></div>
+
+        <h2>Top searches</h2>
+        <table id="top">
+            <thead><tr><th>Query</th><th class="num">Count</th></tr></thead>
+            <tbody><tr><td colspan="2" class="muted">Loading…</td></tr></tbody>
+        </table>
+
+        <h2>Searches without results</h2>
+        <table id="noresult">
+            <thead><tr><th>Query</th><th class="num">Count</th></tr></thead>
+            <tbody><tr><td colspan="2" class="muted">Loading…</td></tr></tbody>
+        </table>
+    </main>
+
+    <script>
+        const base = location.pathname.replace(/\/ui\/?(index\.html)?$/, "");
+        // The backend proxies plugin API routes at `<base>/api` + the manifest
+        // route (which itself starts with `/api/...`), so the path is doubled.
+        const api = (p) => base + "/api" + p;
+        const esc = (s) => (s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+
+        function fillTable(id, rows, empty) {
+            const tb = document.querySelector("#" + id + " tbody");
+            if (!rows.length) { tb.innerHTML = `<tr><td colspan="2" class="muted">${empty}</td></tr>`; return; }
+            tb.innerHTML = rows.map(r => `<tr><td>${esc(r.q)}</td><td class="num">${r.count}</td></tr>`).join("");
+        }
+
+        async function refresh() {
+            const s = await fetch(api("/api/stats")).then(r => r.json());
+            document.getElementById("cards").innerHTML = [
+                ["Indexed pages", s.indexed, "var(--ui-text)"],
+                ["Searches", s.searches, "var(--ui-text)"],
+                ["No-result searches", s.no_result_searches, "var(--ui-warning)"],
+            ].map(([l, n, c]) => `<div class="card"><div class="n" style="color:${c}">${n}</div><div class="l">${l}</div></div>`).join("");
+            fillTable("top", s.top_queries || [], "No searches logged yet.");
+            fillTable("noresult", s.no_result_queries || [], "No empty-handed searches — nice.");
+        }
+
+        document.getElementById("run").addEventListener("click", async (e) => {
+            e.target.disabled = true; e.target.textContent = "Reindexing…";
+            try {
+                const r = await fetch(api("/api/reindex"), { method: "POST" }).then(r => r.json());
+                await refresh();
+                e.target.textContent = `Indexed ${r.indexed} · ${r.total} total`;
+            } catch { e.target.textContent = "Failed"; }
+            setTimeout(() => { e.target.disabled = false; e.target.textContent = "Reindex pages"; }, 2000);
+        });
+
+        refresh();
+    </script>
+</body>
+</html>
