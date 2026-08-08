@@ -3,10 +3,10 @@
 Developer notes for the `site-search` Neleto plugin. For the user-facing
 description, see [readme.md](readme.md).
 
-> Status: **P1 + P2** of the [plugin roadmap](../plugin-cli/docs/plugin-roadmap.md)
+> Status: **P1 + P2 + P3** of the [plugin roadmap](../plugin-cli/docs/plugin-roadmap.md)
 > — P1: reindex + `/search` page + search-bar component + Postgres FTS. P2: live
-> rewriter indexing + query logging + dashboard cards. P3 (autocomplete,
-> `pg_trgm` typo tolerance, weighting/synonyms) is not started.
+> rewriter indexing + query logging + dashboard cards. P3: autocomplete +
+> `pg_trgm` typo tolerance + query-time weighting/synonyms.
 
 ## How it works
 
@@ -36,6 +36,20 @@ setweight(body, 'B')` — backed by a GIN index. Queries use
 `websearch_to_tsquery` (so visitors can use quotes / `-exclude` naturally) ranked
 by `ts_rank`, with `ts_headline` snippets.
 
+**Weighting & synonyms (P3)** are applied at query time, so neither needs a
+reindex. `ts_rank` takes a `{D,C,B,A}` weight array built from the configurable
+`title_weight` / `body_weight` (`search_settings`). Synonyms are expanded in Rust
+(`synonym_expansion`): any query word in a configured group ORs the group's other
+terms into the tsquery via `websearch_to_tsquery(…) || to_tsquery(…)` (multi-word
+synonyms become `<->` phrases). Both are edited in the admin panel.
+
+**Typo tolerance & autocomplete (P3)** use `pg_trgm` (a GIN trigram index on
+`title`). When exact FTS finds nothing, `search()` falls back to
+`similarity(title, q)` (the `%` operator). Autocomplete is a **public
+`/search/suggest`** `pages` route returning JSON (substring + trigram on titles,
+prefix matches first); the search-bar component's `script.js` debounces calls to
+it and renders a keyboard-navigable dropdown.
+
 The `german` config must exist in the target Postgres (it ships with the default
 install). The two-argument `to_tsvector('german', …)` form is used deliberately —
 it's `IMMUTABLE`, which the generated column requires; the one-argument form is
@@ -60,11 +74,12 @@ tags — page text can never inject markup.
 | Hook | Route | Purpose |
 |---|---|---|
 | `pages` | `/search` | Public results page (layout-selectable) |
+| `pages` | `/search/suggest` | Public autocomplete JSON (no layout) |
 | `rewriter` | `/rewriter` | Live full-text indexing on every page render |
-| `components` | `components/search-bar` | Search box that submits to `/search` |
+| `components` | `components/search-bar` | Search box (submits to `/search`) + autocomplete `script.js` |
 | `dashboard_cards` | `/dashboard/top-queries`, `/dashboard/no-results` | Server-rendered analytics cards |
-| `api` | `/api/stats`, `/api/reindex` | Admin data + trigger a reindex |
-| `ui` | `/ui` | Admin panel (stats + reindex + query tables) |
+| `api` | `/api/stats`, `/api/reindex`, `/api/settings` | Admin data + reindex + weighting/synonyms |
+| `ui` | `/ui` | Admin panel (stats + reindex + query tables + settings) |
 
 ## Theming
 
@@ -109,21 +124,23 @@ src/
   indexer.rs     pure HTML → (url, title, text) extraction + unit tests
   reindex.rs     content reindex orchestration (CMS pages → index)
   rewriter.rs    rewriter hook (background full-text indexing)
-  database.rs    CMS reads, index upserts, FTS search, query log, stats
-  api/           search page / admin (stats, reindex) / dashboard cards
+  database.rs    CMS reads, index upserts, FTS search (weights/synonyms/fuzzy),
+                 autocomplete, query log, stats, settings
+  api/           search page + suggest / admin (stats, reindex) / dashboard / settings
 templates/       minijinja dashboard-card fragments
-components/search-bar/  search box component (submits to /search)
+components/search-bar/  search box + autocomplete script.js (submits to /search)
 ui/dist/         static admin panel
 migrations/      plugin schema (search_index, search_query_log)
 ```
 
-## Roadmap (next — P3)
+## Roadmap (still open — post-P3)
 
-- **Autocomplete** + `pg_trgm` typo tolerance (`similarity()` / trigram index).
-- **Weighting & synonyms** in settings (per-type weights, synonym expansion).
 - **Language filtering** for multilingual sites (the `lang` column is already
-  captured from the rendered `<html lang>`, just not yet used to filter).
+  captured from the rendered `<html lang>`, just not yet used to filter, and
+  `/search` doesn't yet accept a `lang` param).
 - **Reconcile rendered rows** — drop indexed post/event URLs that now 404
   (rendered rows currently aren't pruned by a reindex).
 - A **results component** (`search_results` helper) to embed results inline in a
   layout, in addition to the dedicated `/search` page.
+- **Body trigram index** — the typo fallback and autocomplete match on `title`
+  only; add a `body` trigram index if fuzzy body matching is wanted.

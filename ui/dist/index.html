@@ -49,6 +49,15 @@
         tr:last-child td { border-bottom: none; }
         .muted { color: var(--ui-text-muted); }
         .row { display: flex; align-items: center; gap: 8px; }
+        .panel { background: var(--ui-bg); border: 1px solid var(--ui-border); border-radius: 12px; padding: 16px 20px; }
+        .field { display: flex; flex-direction: column; gap: 4px; margin-bottom: 14px; }
+        .field label { font-size: 13px; font-weight: 600; }
+        .field .hint { font-size: 12px; color: var(--ui-text-muted); }
+        .field input, .field textarea { font: inherit; padding: 8px 10px; border: 1px solid var(--ui-border); border-radius: 8px; background: var(--ui-bg); color: var(--ui-text); }
+        textarea { min-height: 96px; resize: vertical; font-family: ui-monospace, monospace; font-size: 13px; }
+        .weights { display: flex; gap: 16px; flex-wrap: wrap; }
+        .weights .field { max-width: 160px; }
+        #settings-status { font-size: 13px; color: var(--ui-text-muted); }
     </style>
     <script>
         // Match the admin theme: copy resolved Nuxt UI colors + dark class from the parent.
@@ -95,6 +104,31 @@
             <thead><tr><th>Query</th><th class="num">Count</th></tr></thead>
             <tbody><tr><td colspan="2" class="muted">Loading…</td></tr></tbody>
         </table>
+
+        <h2>Search settings</h2>
+        <div class="panel">
+            <div class="weights">
+                <div class="field">
+                    <label for="title_weight">Title weight</label>
+                    <input id="title_weight" type="number" step="0.1" min="0" max="10" value="1">
+                    <span class="hint">How much a title match counts.</span>
+                </div>
+                <div class="field">
+                    <label for="body_weight">Body weight</label>
+                    <input id="body_weight" type="number" step="0.1" min="0" max="10" value="0.4">
+                    <span class="hint">How much body-text matches count.</span>
+                </div>
+            </div>
+            <div class="field">
+                <label for="synonyms">Synonyms</label>
+                <textarea id="synonyms" placeholder="haus, gebäude&#10;auto, pkw, wagen"></textarea>
+                <span class="hint">One group per line, terms separated by commas. Searching any term in a group also finds the others.</span>
+            </div>
+            <div class="row">
+                <button id="save-settings">Save settings</button>
+                <span id="settings-status"></span>
+            </div>
+        </div>
     </main>
 
     <script>
@@ -131,7 +165,42 @@
             setTimeout(() => { e.target.disabled = false; e.target.textContent = "Reindex pages"; }, 2000);
         });
 
+        // Synonyms: textarea (one group per line, comma-separated) <-> string[][].
+        const synonymsToText = (groups) => (groups || []).map(g => g.join(", ")).join("\n");
+        const textToSynonyms = (text) => text.split("\n")
+            .map(line => line.split(",").map(t => t.trim()).filter(Boolean))
+            .filter(group => group.length >= 2);
+
+        async function loadSettings() {
+            const s = await fetch(api("/api/settings")).then(r => r.json());
+            document.getElementById("title_weight").value = s.title_weight;
+            document.getElementById("body_weight").value = s.body_weight;
+            document.getElementById("synonyms").value = synonymsToText(s.synonyms);
+        }
+
+        document.getElementById("save-settings").addEventListener("click", async (e) => {
+            const status = document.getElementById("settings-status");
+            e.target.disabled = true; status.textContent = "Saving…";
+            const body = {
+                title_weight: parseFloat(document.getElementById("title_weight").value) || 0,
+                body_weight: parseFloat(document.getElementById("body_weight").value) || 0,
+                synonyms: textToSynonyms(document.getElementById("synonyms").value),
+            };
+            try {
+                const s = await fetch(api("/api/settings"), {
+                    method: "PUT",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify(body),
+                }).then(r => r.json());
+                document.getElementById("synonyms").value = synonymsToText(s.synonyms);
+                status.textContent = "Saved.";
+            } catch { status.textContent = "Failed to save."; }
+            e.target.disabled = false;
+            setTimeout(() => { status.textContent = ""; }, 2500);
+        });
+
         refresh();
+        loadSettings();
     </script>
 </body>
 </html>

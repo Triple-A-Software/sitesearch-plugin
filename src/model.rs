@@ -1,5 +1,5 @@
 use chrono::{DateTime, Utc};
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use sqlx::FromRow;
 
 // ---------------------------------------------------------------------------
@@ -43,6 +43,34 @@ pub struct SearchResult {
     /// `ts_headline` snippet with `<mark>…</mark>` around matched terms.
     pub snippet: String,
     pub rank: f32,
+}
+
+/// A single autocomplete suggestion for the search box.
+#[derive(Debug, Clone, Serialize, FromRow)]
+pub struct Suggestion {
+    pub url: String,
+    pub title: String,
+}
+
+/// Query-time search behaviour, editable in the admin panel.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct SearchSettings {
+    /// Rank multiplier for title matches (ts_rank weight for label A).
+    pub title_weight: f32,
+    /// Rank multiplier for body matches (ts_rank weight for label B).
+    pub body_weight: f32,
+    /// Groups of equivalent terms; any query word in a group ORs in the rest.
+    pub synonyms: Vec<Vec<String>>,
+}
+
+impl Default for SearchSettings {
+    fn default() -> Self {
+        Self {
+            title_weight: 1.0,
+            body_weight: 0.4,
+            synonyms: Vec::new(),
+        }
+    }
 }
 
 // ---------------------------------------------------------------------------

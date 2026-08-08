@@ -8,6 +8,7 @@
 //! standalone page instead, so the route always works.
 
 use axum::{
+    Json,
     extract::{Query, State},
     response::Html,
 };
@@ -15,7 +16,7 @@ use serde::Deserialize;
 
 use crate::{
     AppState, database,
-    model::SearchResult,
+    model::{SearchResult, Suggestion},
     utils::{AppResult, escape_html},
 };
 
@@ -54,6 +55,32 @@ pub async fn page(
 
     let content = render_content(&q, &results);
     Ok(Html(inject(&layout, &content)))
+}
+
+#[derive(Deserialize)]
+pub struct SuggestQuery {
+    #[serde(default)]
+    pub q: Option<String>,
+}
+
+/// GET `/search/suggest?q=…` — JSON autocomplete for the search box. Registered
+/// as a public `pages` route (no layout) so visitors can reach it; `api` routes
+/// would be role-gated.
+pub async fn suggest(
+    State(state): State<AppState>,
+    Query(query): Query<SuggestQuery>,
+) -> AppResult<Json<Vec<Suggestion>>> {
+    let q: String = query
+        .q
+        .unwrap_or_default()
+        .trim()
+        .chars()
+        .take(MAX_QUERY_LEN)
+        .collect();
+    if q.chars().count() < 2 {
+        return Ok(Json(Vec::new()));
+    }
+    Ok(Json(database::suggest(&state.db, &q, 8).await?))
 }
 
 /// Build the search UI fragment (refine form + result list) that goes into the

@@ -6,7 +6,7 @@ use axum::{
 };
 use site_search::{
     AppState,
-    api::{admin, dashboard, search},
+    api::{admin, dashboard, search, settings},
     create_cms_db, create_db, create_env,
     rewriter::rewriter,
 };
@@ -36,12 +36,18 @@ async fn main() {
         // Admin API
         .route("/api/stats", get(admin::route_stats))
         .route("/api/reindex", post(admin::route_reindex))
+        .route(
+            "/api/settings",
+            get(settings::route_get_settings).put(settings::route_update_settings),
+        )
         // Dashboard cards (server-rendered HTML)
         .route("/dashboard/top-queries", get(dashboard::dashboard_top_queries))
         .route("/dashboard/no-results", get(dashboard::dashboard_no_results))
         // Public search results page (GET for a bare visit, POST when Neleto
         // proxies the selected layout in the body)
         .route("/search", get(search::page).post(search::page))
+        // Public autocomplete (visitor-facing pages route, returns JSON)
+        .route("/search/suggest", get(search::suggest))
         // Rewriter (live indexing of rendered pages)
         .route("/rewriter", post(rewriter))
         .layer(NormalizePathLayer::trim_trailing_slash())

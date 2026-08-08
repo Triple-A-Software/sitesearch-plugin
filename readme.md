@@ -14,8 +14,14 @@ useful — what they search for and *don't* find.
 
 - **Help visitors find things.** A proper site search turns "I gave up" into "I
   found it" — especially on content-heavy sites.
+- **Autocomplete as they type.** A suggestion dropdown appears under the search
+  box and jumps straight to matching pages.
+- **Forgiving of typos.** Trigram matching still finds *Gebäude* when someone
+  types *gebaude* or *gebeude*.
 - **German-aware.** Uses PostgreSQL's German text search, so *Häuser* matches
   *Haus* and common stop words are ignored.
+- **Tune it without code.** Weight titles vs. body text and define synonym
+  groups (e.g. *Auto = PKW = Wagen*) right in the admin panel — no reindex needed.
 - **See what people want.** The **Top Searches** card shows your most popular
   queries; **Searches Without Results** reveals the content your visitors expect
   but you don't have yet — a ready-made content to-do list.
