@@ -6,13 +6,17 @@ use sqlx::FromRow;
 // CMS-side rows (read from CMS_DATABASE_URL)
 // ---------------------------------------------------------------------------
 
-/// A public page as stored by the Neleto core in the `page` table.
+/// A public page as stored by the Neleto core in the `page` table, joined with
+/// the concatenated text of its elements. `body` is the raw HTML content pulled
+/// from the CMS `translation` table (keyed `<element-id>:content`); the reindex
+/// strips it to plain text before indexing.
 #[derive(Debug, Clone, FromRow)]
 pub struct CmsPage {
     pub id: i32,
     pub route: String,
     pub title: String,
     pub description: Option<String>,
+    pub body: Option<String>,
 }
 
 // ---------------------------------------------------------------------------

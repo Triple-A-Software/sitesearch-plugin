@@ -11,10 +11,25 @@ use crate::{
 
 /// All public, non-deleted pages from the CMS.
 pub async fn fetch_cms_pages(cms_db: &PgPool) -> AppResult<Vec<CmsPage>> {
+    // Page metadata plus the concatenated text of every element on the page. An
+    // element's rich-text content lives in the `translation` table under the key
+    // `<element-id>:content` (the same join Neleto's own content search uses), so
+    // we can index the full page body from the CMS — the rewriter only ever sees
+    // canonical/og:url-tagged pages, which Neleto doesn't emit. No language filter:
+    // a page keys to one index row, so we fold in all languages' text.
     Ok(sqlx::query_as(
-        r#"select id, route, title, description
-           from page
-           where status = 'public' and deleted_at is null"#,
+        r#"select p.id,
+                  p.route,
+                  p.title,
+                  p.description,
+                  string_agg(t.content, ' ') as body
+           from page p
+           left join element e
+               on e.page_id = p.id and e.deleted_at is null
+           left join translation t
+               on t.key = e.id::text || ':content'
+           where p.status = 'public' and p.deleted_at is null
+           group by p.id, p.route, p.title, p.description"#,
     )
     .fetch_all(cms_db)
     .await?)

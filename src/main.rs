@@ -46,8 +46,11 @@ async fn main() {
         // Public search results page (GET for a bare visit, POST when Neleto
         // proxies the selected layout in the body)
         .route("/search", get(search::page).post(search::page))
-        // Public autocomplete (visitor-facing pages route, returns JSON)
-        .route("/search/suggest", get(search::suggest))
+        // Public autocomplete (visitor-facing pages route, returns JSON).
+        // Accepts POST as well as GET: Neleto proxies pages routes as POST, the
+        // same as /search above — a GET-only route makes the proxy hand the
+        // browser an empty 200, which breaks the client's res.json().
+        .route("/search/suggest", get(search::suggest).post(search::suggest))
         // Rewriter (live indexing of rendered pages)
         .route("/rewriter", post(rewriter))
         .layer(NormalizePathLayer::trim_trailing_slash())

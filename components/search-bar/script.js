@@ -55,7 +55,18 @@ export function init({ element }) {
                 headers: { Accept: "application/json" },
             });
             if (!res.ok) return close();
-            render(await res.json());
+            // The endpoint returns a JSON array; guard against an empty or
+            // non-JSON body (e.g. a proxy handing back an empty 200) so we
+            // never throw "Unexpected end of JSON input".
+            const text = (await res.text()).trim();
+            if (!text) return close();
+            let data;
+            try {
+                data = JSON.parse(text);
+            } catch {
+                return close();
+            }
+            render(data);
         } catch (e) {
             /* aborted or offline — leave the box as-is */
         }

@@ -7,11 +7,14 @@
 //! slot. When no layout is selected the body is empty and we return a minimal
 //! standalone page instead, so the route always works.
 
+use std::sync::LazyLock;
+
 use axum::{
     Json,
     extract::{Query, State},
     response::Html,
 };
+use regex::{NoExpand, Regex};
 use serde::Deserialize;
 
 use crate::{
@@ -132,26 +135,41 @@ fn highlight(snippet: &str) -> String {
         .replace("[[/hl]]", "</mark>")
 }
 
-/// Splice `content` into the rendered layout. Prefers the `<slot></slot>`
-/// placeholder; falls back to just-before-`</body>`; and when there is no layout
-/// at all (bare GET) returns a standalone document.
+// Neleto renders the layout's page-content slot as `<slot></slot>`, but in a real
+// rendered layout that slot can carry attributes (`<slot name="…">`) or be
+// self-closing (`<slot/>`), and there can be more than one. Match all of those
+// forms — like the products-service / conjuno plugins do — rather than a literal
+// string, or the slot is left in place and results land in the wrong spot.
+static SLOT_PAIR: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)<slot[^>]*></slot>").unwrap());
+static SLOT_SELF: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"(?i)<slot[^>]*/>").unwrap());
+static SLOT_MUSTACHE: LazyLock<Regex> = LazyLock::new(|| Regex::new(r"\{\{\s*slot\s*\}\}").unwrap());
+
+/// Splice `content` into the rendered layout. Replaces every `<slot …></slot>`
+/// (or self-closing `<slot/>`), then falls back to the unrendered `{{ slot }}`
+/// source, `</main>`, `</body>`, and finally appends; an empty layout (bare GET)
+/// yields a standalone document. `NoExpand` keeps any `$` in the content literal
+/// (regex replacements otherwise read `$n` as capture references).
 fn inject(layout: &str, content: &str) -> String {
     if layout.trim().is_empty() {
         return standalone(content);
     }
-    if let Some(idx) = layout.find("<slot></slot>") {
-        let mut s = String::with_capacity(layout.len() + content.len());
-        s.push_str(&layout[..idx]);
-        s.push_str(content);
-        s.push_str(&layout[idx + "<slot></slot>".len()..]);
-        return s;
+    if SLOT_PAIR.is_match(layout) {
+        return SLOT_PAIR.replace_all(layout, NoExpand(content)).into_owned();
     }
-    if let Some(idx) = layout.find("</body>") {
-        let mut s = String::with_capacity(layout.len() + content.len());
-        s.push_str(&layout[..idx]);
-        s.push_str(content);
-        s.push_str(&layout[idx..]);
-        return s;
+    if SLOT_SELF.is_match(layout) {
+        return SLOT_SELF.replace_all(layout, NoExpand(content)).into_owned();
+    }
+    if SLOT_MUSTACHE.is_match(layout) {
+        return SLOT_MUSTACHE.replace(layout, NoExpand(content)).into_owned();
+    }
+    for marker in ["</main>", "</body>"] {
+        if let Some(idx) = layout.find(marker) {
+            let mut s = String::with_capacity(layout.len() + content.len());
+            s.push_str(&layout[..idx]);
+            s.push_str(content);
+            s.push_str(&layout[idx..]);
+            return s;
+        }
     }
     format!("{layout}{content}")
 }
@@ -195,8 +213,40 @@ mod tests {
     fn injects_into_slot() {
         let out = inject("<html><body><header>nav</header><slot></slot></body></html>", "RESULTS");
         assert!(out.contains("RESULTS"));
-        assert!(!out.contains("<slot>"));
+        assert!(!out.contains("<slot"));
         assert!(out.starts_with("<html>"));
+    }
+
+    #[test]
+    fn injects_into_slot_with_attributes() {
+        // a real rendered layout's slot can carry attributes
+        let out = inject(r#"<body><slot name="content" data-x="1"></slot></body>"#, "RESULTS");
+        assert!(out.contains("RESULTS"));
+        assert!(!out.contains("<slot"));
+    }
+
+    #[test]
+    fn injects_into_self_closing_slot() {
+        let out = inject("<body><slot /></body>", "RESULTS");
+        assert!(out.contains("RESULTS"));
+        assert!(!out.contains("<slot"));
+    }
+
+    #[test]
+    fn replaces_every_slot() {
+        assert_eq!(inject("<slot></slot>X<slot></slot>", "R"), "RXR");
+    }
+
+    #[test]
+    fn content_dollar_stays_literal() {
+        // `$5` / `$item` in the content must not be read as regex capture refs
+        let out = inject("<slot></slot>", "price $5 for $item");
+        assert!(out.contains("price $5 for $item"));
+    }
+
+    #[test]
+    fn falls_back_to_body_when_no_slot() {
+        assert_eq!(inject("<html><body>hi</body></html>", "R"), "<html><body>hiR</body></html>");
     }
 
     #[test]

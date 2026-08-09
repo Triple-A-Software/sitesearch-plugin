@@ -51,6 +51,25 @@ pub fn extract(html: &str) -> PageContent {
     }
 }
 
+/// Turn a CMS content fragment (stored as HTML in the `translation` table) into
+/// collapsed plain text for indexing. Unlike [`extract`], which parses a whole
+/// rendered document and pulls specific content blocks, this handles the bare
+/// HTML of a single element's content — text nodes are joined with spaces so
+/// adjacent nodes across tags keep a word boundary.
+pub fn strip_html(fragment: &str) -> String {
+    let doc = Html::parse_fragment(fragment);
+    let text = doc.root_element().text().collect::<Vec<_>>().join(" ");
+    let mut body = collapse_ws(&text);
+    if body.len() > MAX_BODY_LEN {
+        let mut end = MAX_BODY_LEN;
+        while !body.is_char_boundary(end) {
+            end -= 1;
+        }
+        body.truncate(end);
+    }
+    body
+}
+
 fn extract_text(doc: &Html) -> String {
     let selector = Selector::parse(CONTENT_SELECTOR).expect("static selector is valid");
     let mut parts: Vec<String> = Vec::new();
@@ -138,5 +157,18 @@ mod tests {
     fn no_url_when_no_canonical_or_og() {
         let c = extract("<html><body><p>hi</p></body></html>");
         assert!(c.url.is_none());
+    }
+
+    #[test]
+    fn strip_html_keeps_word_boundaries_across_tags() {
+        // adjacent block/inline text must not run together into one token
+        let s = strip_html("<p>Hallo <strong>Welt</strong></p><p>Lorem ipsum</p>");
+        assert_eq!(s, "Hallo Welt Lorem ipsum");
+    }
+
+    #[test]
+    fn strip_html_handles_bare_text() {
+        assert_eq!(strip_html("just text"), "just text");
+        assert_eq!(strip_html(""), "");
     }
 }

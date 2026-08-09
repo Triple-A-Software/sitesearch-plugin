@@ -7,7 +7,7 @@
     "properties": [
         {
             "id": "placeholder",
-            "type": "text",
+            "type": "textarea",
             "label": {
                 "de": "Platzhaltertext",
                 "en": "Placeholder text"
@@ -15,7 +15,7 @@
         },
         {
             "id": "button_label",
-            "type": "text",
+            "type": "textarea",
             "label": {
                 "de": "Button-Beschriftung",
                 "en": "Button label"

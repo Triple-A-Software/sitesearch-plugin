@@ -4,7 +4,7 @@
 
 use sqlx::PgPool;
 
-use crate::{database, utils::AppResult};
+use crate::{database, indexer, utils::AppResult};
 
 /// Reindex all public pages, then prune content rows for pages that no longer
 /// exist. Returns the number of pages indexed.
@@ -18,8 +18,12 @@ pub async fn run_reindex(db: &PgPool, cms_db: &PgPool) -> AppResult<usize> {
         if p.route.contains(':') || p.route.contains('*') {
             continue;
         }
-        let body = p.description.as_deref().unwrap_or("");
-        database::upsert_db_page(db, &p.route, Some(p.id), &p.title, body).await?;
+        // Body = the page's description plus the plain text of its elements, so
+        // full-text search matches page content and not just title/description.
+        let description = p.description.as_deref().unwrap_or("");
+        let content = p.body.as_deref().map(indexer::strip_html).unwrap_or_default();
+        let body = format!("{description} {content}");
+        database::upsert_db_page(db, &p.route, Some(p.id), &p.title, body.trim()).await?;
         keep.push(p.route.clone());
     }
     database::prune_db_pages(db, &keep).await?;
