@@ -28,15 +28,15 @@
     "api": [
         {
             "route": "/api/stats",
-            "allowed_roles": ["admin", "developer", "editor"]
+            "allowed_permissions": ["page.update"]
         },
         {
             "route": "/api/reindex",
-            "allowed_roles": ["admin", "developer"]
+            "allowed_permissions": ["settings.update"]
         },
         {
             "route": "/api/settings",
-            "allowed_roles": ["admin", "developer"]
+            "allowed_permissions": ["settings.update"]
         }
     ],
     "dashboard_cards": [
